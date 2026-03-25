@@ -2,5 +2,5 @@ services:
   - type: web
     name: kenya-economic-inequality
     runtime: python
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: python -c "import os; exec(open('run_database.py').read())" && streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+    buildCommand: chmod +x setup.sh && ./setup.sh
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0

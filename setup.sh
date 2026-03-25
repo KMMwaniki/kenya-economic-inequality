@@ -1,9 +1,15 @@
 #!/bin/bash
 
-# Install pip packages
+# Upgrade pip
 pip install --upgrade pip
-pip install wheel
-pip install -r requirements.txt
+
+# Install packages one by one
+pip install numpy
+pip install pandas
+pip install plotly
+pip install streamlit
 
 # Create database
 python run_database.py
+
+echo "Build completed!"
