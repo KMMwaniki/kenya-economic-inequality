@@ -1,50 +1,38 @@
 import sqlite3
+import os
 
 print("=" * 50)
-print("Kenya County Economic Inequality Analysis")
-print("Setting up database...")
+print("Creating Kenya Counties Database")
 print("=" * 50)
 
-# Step 1: Create database connection
+# Check if setup.sql exists
+if not os.path.exists('setup.sql'):
+    print("ERROR: setup.sql not found!")
+    exit(1)
+
+# Read setup.sql
+with open('setup.sql', 'r', encoding='utf-8') as f:
+    sql_script = f.read()
+
+# Create database
 conn = sqlite3.connect('kenya_counties.db')
 cursor = conn.cursor()
 
-# Step 2: Read and run setup.sql
-print("\n📁 Reading setup.sql...")
-with open('setup.sql', 'r', encoding='utf-8') as f:
-    setup_sql = f.read()
-
-print("🏗️  Creating tables and inserting data...")
+# Execute SQL
 try:
-    conn.executescript(setup_sql)
-    print("✅ Database setup complete!")
+    conn.executescript(sql_script)
+    conn.commit()
+    print("✅ Database created successfully!")
+    
+    # Verify tables
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = cursor.fetchall()
+    print(f"📊 Tables created: {[t[0] for t in tables]}")
+    
 except Exception as e:
     print(f"❌ Error: {e}")
+    exit(1)
+finally:
+    conn.close()
 
-# Step 3: Verify tables were created
-print("\n📊 Verifying tables:")
-cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-tables = cursor.fetchall()
-for table in tables:
-    print(f"   ✅ {table[0]}")
-
-# Step 4: Count records in each table
-print("\n📈 Record counts:")
-for table in ['counties', 'demographics', 'infrastructure', 'health', 'education']:
-    cursor.execute(f"SELECT COUNT(*) FROM {table}")
-    count = cursor.fetchone()[0]
-    print(f"   {table}: {count} records")
-
-# Step 5: Show sample data
-print("\n📋 Sample data from counties:")
-cursor.execute("SELECT county_name, region FROM counties LIMIT 5")
-sample = cursor.fetchall()
-for county in sample:
-    print(f"   {county[0]} - {county[1]}")
-
-# Close connection
-conn.close()
-
-print("\n" + "=" * 50)
-print("✅ Database is ready!")
 print("=" * 50)

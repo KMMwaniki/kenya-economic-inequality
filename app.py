@@ -5,9 +5,21 @@
 # Strathmore University
 # =====================================================
 
+import os
+import sqlite3
+
+# Create database on startup if it doesn't exist
+if not os.path.exists('kenya_counties.db'):
+    print("🔧 Database not found. Creating...")
+    try:
+        with open('run_database.py', 'r') as f:
+            exec(f.read())
+        print("✅ Database created successfully!")
+    except Exception as e:
+        print(f"❌ Error creating database: {e}")
+
 import streamlit as st
 import pandas as pd
-import sqlite3
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
@@ -60,11 +72,12 @@ def load_data():
     health = pd.read_sql_query("SELECT * FROM health WHERE year = 2023", conn)
     education = pd.read_sql_query("SELECT * FROM education WHERE year = 2023", conn)
     
-    # Remove duplicate columns before merging
-    infrastructure = infrastructure.drop(columns=['year', 'id'], errors='ignore')
-    health = health.drop(columns=['year', 'id'], errors='ignore')
-    education = education.drop(columns=['year', 'id'], errors='ignore')
-    demographics = demographics.drop(columns=['year', 'id'], errors='ignore')
+    # Select only needed columns to avoid duplicates
+    counties = counties[['county_id', 'county_name', 'region', 'sub_region']]
+    demographics = demographics[['county_id', 'population', 'poverty_rate', 'unemployment_rate', 'gini_coefficient']]
+    infrastructure = infrastructure[['county_id', 'road_density', 'electricity_access', 'internet_access', 'paved_roads_percentage']]
+    health = health[['county_id', 'hospital_count', 'doctors_per_1000', 'child_mortality', 'health_facilities_per_10000']]
+    education = education[['county_id', 'literacy_rate', 'school_enrollment', 'dropout_rate', 'primary_completion_rate']]
     
     # Merge all data
     df = counties.merge(demographics, on='county_id')
