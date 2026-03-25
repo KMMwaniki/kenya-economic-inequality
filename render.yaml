@@ -1,6 +1,6 @@
 services:
   - type: web
     name: kenya-economic-inequality
-    runtime: python
-    buildCommand: chmod +x setup.sh && ./setup.sh
+    runtime: python3
+    buildCommand: pip install streamlit pandas plotly numpy
     startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0

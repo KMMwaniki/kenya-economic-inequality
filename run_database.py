@@ -5,29 +5,24 @@ print("=" * 50)
 print("Creating Kenya Counties Database")
 print("=" * 50)
 
-# Check if setup.sql exists
 if not os.path.exists('setup.sql'):
     print("ERROR: setup.sql not found!")
     exit(1)
 
-# Read setup.sql
 with open('setup.sql', 'r', encoding='utf-8') as f:
     sql_script = f.read()
 
-# Create database
 conn = sqlite3.connect('kenya_counties.db')
 cursor = conn.cursor()
 
-# Execute SQL
 try:
     conn.executescript(sql_script)
     conn.commit()
     print("✅ Database created successfully!")
     
-    # Verify tables
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
     tables = cursor.fetchall()
-    print(f"📊 Tables created: {[t[0] for t in tables]}")
+    print(f"📊 Tables: {[t[0] for t in tables]}")
     
 except Exception as e:
     print(f"❌ Error: {e}")
