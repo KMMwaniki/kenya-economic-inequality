@@ -13,17 +13,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 
-# Create database on startup if it doesn't exist
-if not os.path.exists('kenya_counties.db'):
-    print("🔧 Database not found. Creating...")
-    try:
-        with open('run_database.py', 'r') as f:
-            exec(f.read())
-        print("✅ Database created successfully!")
-    except Exception as e:
-        print(f"❌ Error creating database: {e}")
-
-# Page configuration
+# Page configuration - MUST be first Streamlit command
 st.set_page_config(
     page_title="Kenya County Economic Inequality Analysis",
     page_icon="🇰🇪",
@@ -54,6 +44,36 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Create database on startup if it doesn't exist
+@st.cache_resource
+def init_database():
+    if not os.path.exists('kenya_counties.db'):
+        st.info("🔧 Setting up database for first use...")
+        try:
+            if os.path.exists('run_database.py'):
+                with open('run_database.py', 'r') as f:
+                    exec(f.read())
+            else:
+                # Direct database creation if run_database.py missing
+                with open('setup.sql', 'r') as f:
+                    sql = f.read()
+                conn = sqlite3.connect('kenya_counties.db')
+                conn.executescript(sql)
+                conn.commit()
+                conn.close()
+            st.success("✅ Database created successfully!")
+        except Exception as e:
+            st.error(f"❌ Database creation failed: {e}")
+            return False
+    return True
+
+# Initialize database
+db_ready = init_database()
+
+if not db_ready:
+    st.error("Database not available. Please check logs.")
+    st.stop()
+
 # Database connection function
 @st.cache_resource
 def get_connection():
@@ -62,41 +82,52 @@ def get_connection():
 # Load data with caching
 @st.cache_data
 def load_data():
-    conn = get_connection()
-    
-    # Load all tables
-    counties = pd.read_sql_query("SELECT * FROM counties", conn)
-    demographics = pd.read_sql_query("SELECT * FROM demographics WHERE year = 2023", conn)
-    infrastructure = pd.read_sql_query("SELECT * FROM infrastructure WHERE year = 2023", conn)
-    health = pd.read_sql_query("SELECT * FROM health WHERE year = 2023", conn)
-    education = pd.read_sql_query("SELECT * FROM education WHERE year = 2023", conn)
-    
-    # Select only needed columns to avoid duplicates
-    counties = counties[['county_id', 'county_name', 'region', 'sub_region']]
-    demographics = demographics[['county_id', 'population', 'poverty_rate', 'unemployment_rate', 'gini_coefficient']]
-    infrastructure = infrastructure[['county_id', 'road_density', 'electricity_access', 'internet_access', 'paved_roads_percentage']]
-    health = health[['county_id', 'hospital_count', 'doctors_per_1000', 'child_mortality', 'health_facilities_per_10000']]
-    education = education[['county_id', 'literacy_rate', 'school_enrollment', 'dropout_rate', 'primary_completion_rate']]
-    
-    # Merge all data
-    df = counties.merge(demographics, on='county_id')
-    df = df.merge(infrastructure, on='county_id')
-    df = df.merge(health, on='county_id')
-    df = df.merge(education, on='county_id')
-    
-    # Calculate inequality score
-    df['inequality_score'] = (
-        (df['poverty_rate'] / 100) * 0.3 +
-        (1 - df['electricity_access'] / 100) * 0.3 +
-        (1 - df['literacy_rate'] / 100) * 0.2 +
-        (1 - df['doctors_per_1000'] / df['doctors_per_1000'].max()) * 0.2
-    ) * 100
-    
-    conn.close()
-    return df
+    try:
+        conn = get_connection()
+        
+        # Load all tables
+        counties = pd.read_sql_query("SELECT * FROM counties", conn)
+        demographics = pd.read_sql_query("SELECT * FROM demographics WHERE year = 2023", conn)
+        infrastructure = pd.read_sql_query("SELECT * FROM infrastructure WHERE year = 2023", conn)
+        health = pd.read_sql_query("SELECT * FROM health WHERE year = 2023", conn)
+        education = pd.read_sql_query("SELECT * FROM education WHERE year = 2023", conn)
+        
+        # Select only needed columns to avoid duplicates
+        counties = counties[['county_id', 'county_name', 'region', 'sub_region']]
+        demographics = demographics[['county_id', 'population', 'poverty_rate', 'unemployment_rate', 'gini_coefficient']]
+        infrastructure = infrastructure[['county_id', 'road_density', 'electricity_access', 'internet_access', 'paved_roads_percentage']]
+        health = health[['county_id', 'hospital_count', 'doctors_per_1000', 'child_mortality', 'health_facilities_per_10000']]
+        education = education[['county_id', 'literacy_rate', 'school_enrollment', 'dropout_rate', 'primary_completion_rate']]
+        
+        # Merge all data
+        df = counties.merge(demographics, on='county_id')
+        df = df.merge(infrastructure, on='county_id')
+        df = df.merge(health, on='county_id')
+        df = df.merge(education, on='county_id')
+        
+        # Calculate inequality score
+        if df['doctors_per_1000'].max() > 0:
+            df['inequality_score'] = (
+                (df['poverty_rate'] / 100) * 0.3 +
+                (1 - df['electricity_access'] / 100) * 0.3 +
+                (1 - df['literacy_rate'] / 100) * 0.2 +
+                (1 - df['doctors_per_1000'] / df['doctors_per_1000'].max()) * 0.2
+            ) * 100
+        else:
+            df['inequality_score'] = 50
+        
+        conn.close()
+        return df
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        return pd.DataFrame()
 
 # Load data
 df = load_data()
+
+if df.empty:
+    st.error("No data loaded. Please check database.")
+    st.stop()
 
 # Sidebar
 with st.sidebar:
@@ -117,16 +148,10 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### About")
     st.markdown("""
-    This dashboard analyzes economic inequality across Kenya's 47 counties.
-    Data sources: KNBS, Ministry of Health, Ministry of Education
-    """)
+    **Author:** Kimberly Muthoni Mwaniki  
+    **Institution:** Strathmore University  
     
-    st.markdown("---")
-    st.markdown("### Key Findings")
-    st.markdown("""
-    - **Electricity access** is the strongest predictor of poverty reduction
-    - **Regional disparities** are most pronounced in North Eastern and Coastal regions
-    - **Turkana, Mandera, and Wajir** require urgent intervention
+    Analyzing economic inequality across Kenya's 47 counties using KNBS data.
     """)
 
 # Main content
@@ -156,9 +181,8 @@ if page == "🏠 Dashboard Overview":
     
     with col4:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.metric("High Poverty Counties (>50%)", 
-                  f"{len(df[df['poverty_rate'] > 50])}",
-                  delta=f"out of 47")
+        high_poverty = len(df[df['poverty_rate'] > 50])
+        st.metric("High Poverty Counties (>50%)", f"{high_poverty}", delta=f"out of 47")
         st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("---")
@@ -244,8 +268,13 @@ elif page == "🔍 SQL Query Explorer":
     st.markdown('<h1 class="main-header">SQL Query Explorer</h1>', 
                 unsafe_allow_html=True)
     
-    query = st.text_area("Enter SQL query:", height=150, 
-                         value="SELECT county_name, poverty_rate FROM counties JOIN demographics ON counties.county_id = demographics.county_id LIMIT 10")
+    example_query = """SELECT county_name, poverty_rate, electricity_access 
+FROM counties 
+JOIN demographics ON counties.county_id = demographics.county_id 
+JOIN infrastructure ON counties.county_id = infrastructure.county_id 
+LIMIT 10"""
+    
+    query = st.text_area("Enter SQL query:", height=150, value=example_query)
     
     if st.button("Run Query"):
         try:
@@ -256,7 +285,7 @@ elif page == "🔍 SQL Query Explorer":
         except Exception as e:
             st.error(f"Error: {e}")
 
-else:
+else:  # Top Underserved Counties
     st.markdown('<h1 class="main-header">Top 10 Most Underserved Counties</h1>', 
                 unsafe_allow_html=True)
     
